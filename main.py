@@ -102,7 +102,7 @@ class Server:
                 chunk_size = f"{len(chunk):X}\r\n"
                 client_socket.send(chunk_size.encode('utf-8') + chunk + b'\r\n')
                 time.sleep(self.wait)
-        except ConnectionError or ConnectionResetError:
+        except (ConnectionError, ConnectionResetError, TimeoutError):
             ...
         finally:
             end = time.perf_counter()
