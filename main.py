@@ -1,12 +1,15 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import partial
 import os
 import signal
 import socket
-# import time
+import time
 from threading import Thread
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, List
+
+
+CRASH_AND_BURN = False
 
 
 class Server:
@@ -14,13 +17,7 @@ class Server:
         self.__port = port
         self.__address = address
 
-        """
-        # Async setup
-        if loop is None:
-            self.__loop = asyncio.get_event_loop()
-        else:
-            self.__loop = loop
-        """
+        self.__threads: List[Thread] = []
 
         if TYPE_CHECKING:
             self.__server_socket: Union[socket.socket, None] = None
@@ -40,12 +37,24 @@ class Server:
 
             # Handle the request in a separate function
             try:
-                child = Thread(target=self.handle_request, args=[client_socket])
+                child = Thread(target=self.handle_request, args=[client_socket, client_address])
                 child.start()
+                self.__threads.append(child)
             except Exception as e:
                 print("Threading error:\n\n", e)
 
-    def handle_request(self, client_socket):
+            # Prune dead threads
+            self.__threads = [t for t in self.__threads if t.is_alive()]
+
+    def handle_request(self, client_socket, client_address) -> None:
+        """
+        Handles a client request.
+        :param client_socket: The received socket from the client.
+        :param client_address: The address information of the client.
+        :return: None.
+        """
+        global CRASH_AND_BURN
+        start = time.perf_counter()
         try:
             client_socket.recv(1024)
 
@@ -60,6 +69,9 @@ class Server:
 
             # Send the response in chunks
             while True:
+                if CRASH_AND_BURN:
+                    client_socket.close()
+                    return
                 chunk = os.urandom(1024 * 128)
                 chunk_size = f"{len(chunk):X}\r\n"
                 client_socket.send(chunk_size.encode('utf-8') + chunk + b'\r\n')
@@ -67,16 +79,56 @@ class Server:
                 # client_socket.send(b'\r\n')
         except ConnectionError or ConnectionResetError:
             ...
+        finally:
+            end = time.perf_counter()
 
         # Send the final chunk
         # client_socket.send(b'0\r\n\r\n')
 
         # Close the connection
         client_socket.close()
-        log("Socket closed")
+        log(f"Kept client {client_address} busy for {self.time_format(start, end)}")
 
     def stop(self):
+        log("Stopping...")
+        global CRASH_AND_BURN
+        CRASH_AND_BURN = True
+        for thread in self.__threads:
+            thread.join()
         self.__server_socket.close()
+
+    @staticmethod
+    def time_format(start: float, end: float) -> str:
+        """
+        Format the given time difference as days, hours, minutes, and seconds.
+        :param start: The start time (float).
+        :param end: The end time (float).
+        :return: The formatted date string.
+        """
+        time_diff = timedelta(seconds=(end - start))
+        days = time_diff.days
+        hours, remainder = divmod(time_diff.seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+        seconds = (end - start) % 60
+
+        result = ""
+        if days == 1:
+            result += "1 day, "
+        elif days > 1:
+            result += f"{days} days, "
+
+        if hours == 1:
+            result += "1 hour, "
+        elif hours > 1:
+            result += f"{hours} hours, "
+
+        if minutes == 1:
+            result += "1 minute, "
+        elif minutes > 1:
+            result += f"{minutes} minutes, "
+
+        result += f"{seconds:.4f} seconds"
+        return result
 
 
 def log(message: str) -> None:
