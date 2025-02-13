@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import asyncio
 from datetime import datetime, timedelta
 from functools import partial
@@ -21,6 +23,20 @@ class Server:
 
         if TYPE_CHECKING:
             self.__server_socket: Union[socket.socket, None] = None
+
+        # mode: (wait, num_bytes)
+        modes = {
+            "mist": (10, 1),
+            "drip": (1, 128),
+            "trickle": (0.5, 1024),
+            "flood": (0.0, 1024 * 128),
+        }
+
+        mode = os.getenv("MODE")
+        if not mode or mode not in modes:
+            mode = "drip"
+        self.wait, self.num_bytes = modes[mode]
+        log(f"Using mode: {mode}")
 
     def start(self):
         self.__server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -56,7 +72,7 @@ class Server:
         global CRASH_AND_BURN
         start = time.perf_counter()
         try:
-            client_socket.recv(1024)
+            # client_socket.recv(1024)
 
             # Send HTTP headers
             response_headers = (
@@ -72,11 +88,10 @@ class Server:
                 if CRASH_AND_BURN:
                     client_socket.close()
                     return
-                chunk = os.urandom(1024 * 128)
+                chunk = os.urandom(self.num_bytes)
                 chunk_size = f"{len(chunk):X}\r\n"
                 client_socket.send(chunk_size.encode('utf-8') + chunk + b'\r\n')
-                # client_socket.send(chunk.encode('utf-8'))
-                # client_socket.send(b'\r\n')
+                time.sleep(self.wait)
         except ConnectionError or ConnectionResetError:
             ...
         finally:
