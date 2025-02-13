@@ -12,10 +12,8 @@ import time
 from threading import Thread
 from typing import TYPE_CHECKING, Union, List
 
-
 CRASH_AND_BURN = False
 ALIVE_FILE = "./alive.txt"
-
 
 # Prometheus metrics
 client_request_count = Counter(
@@ -23,6 +21,7 @@ client_request_count = Counter(
     'Count of requests per IP',
     ['time', 'ip', 'trapped_time']
 )
+
 
 class Server:
     def __init__(self, address: str = "0.0.0.0", port: int = 8080):
@@ -194,6 +193,7 @@ if __name__ == '__main__':
     start_http_server(8081)
     try:
         import uvloop
+
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         log("Using uvloop.")
     except ImportError:
