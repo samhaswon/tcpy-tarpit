@@ -1,0 +1,5 @@
+scrape_configs:
+  - job_name: 'tcpy-tarpit'
+    scrape_interval: 1s
+    static_configs:
+      - targets: ['tcpy-tarpit:8081']

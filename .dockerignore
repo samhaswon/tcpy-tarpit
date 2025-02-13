@@ -3,3 +3,8 @@
 .dockerignore
 .gitignore
 README.md
+*.yml
+.git*
+grafana
+prometheus
+makefile

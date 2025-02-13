@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from prometheus_client import start_http_server, Counter
+
 import asyncio
 from datetime import datetime, timedelta
 from functools import partial
@@ -12,7 +14,15 @@ from typing import TYPE_CHECKING, Union, List
 
 
 CRASH_AND_BURN = False
+ALIVE_FILE = "./alive.txt"
 
+
+# Prometheus metrics
+client_request_count = Counter(
+    'client_request_count',
+    'Count of requests per IP',
+    ['time', 'ip', 'trapped_time']
+)
 
 class Server:
     def __init__(self, address: str = "0.0.0.0", port: int = 8080):
@@ -72,6 +82,7 @@ class Server:
         global CRASH_AND_BURN
         start = time.perf_counter()
         try:
+            # Maybe receive in the future to classify requests?
             # client_socket.recv(1024)
 
             # Send HTTP headers
@@ -103,11 +114,16 @@ class Server:
         # Close the connection
         client_socket.close()
         log(f"Kept client {client_address} busy for {self.time_format(start, end)}")
+        client_request_count.labels(time=time.time(), ip=client_address[0], trapped_time=end - start).inc(end - start)
 
     def stop(self):
         log("Stopping...")
+
+        # Tell threads to die
         global CRASH_AND_BURN
         CRASH_AND_BURN = True
+
+        # Wait for threads to die
         for thread in self.__threads:
             thread.join()
         self.__server_socket.close()
@@ -163,7 +179,7 @@ async def main(main_loop):
     server.start()
     server_runner = asyncio.run_coroutine_threadsafe(server.run(), loop=main_loop)
 
-    # Exit setup
+    # Exit setup. Honestly, this doesn't work.
     exit_event = asyncio.Event()
     signal_handler = partial(exit_handler, exit_event)
     signal.signal(signal.SIGINT, signal_handler)
@@ -175,6 +191,14 @@ async def main(main_loop):
 
 
 if __name__ == '__main__':
-    loop = asyncio.new_event_loop()
-    loop.run_until_complete(main(loop))
-    loop.close()
+    start_http_server(8081)
+    try:
+        import uvloop
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        log("Using uvloop.")
+    except ImportError:
+        ...
+    finally:
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(main(loop))
+        loop.close()
