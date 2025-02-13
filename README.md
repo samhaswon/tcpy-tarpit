@@ -41,13 +41,13 @@ docker run -d -p 8080:8080 \
        --restart=unless-stopped \
        --name tcpy-tarpit \
        -e MODE=drip \
-       samhaswon/httpy-tarpit
+       samhaswon/tcpy-tarpit
 ```
 
 ### Docker Compose
 ```yml
 services:
-  httpy-tarpit:
+  tcpy-tarpit:
     image: samhaswon/tcpy-tarpit
     container_name: tcpy-tarpit
     restart: unless-stopped
@@ -68,7 +68,7 @@ The following docker compose configuration uses folders rather than volumes if t
 
 ```yml
 services:
-  httpy-tarpit:
+  tcpy-tarpit:
     image: samhaswon/tcpy-tarpit
     container_name: tcpy-tarpit
     restart: unless-stopped
